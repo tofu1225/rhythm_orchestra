@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リズム★オーケストラ ‐ 3D Rhythm Stages</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Kosugi+Maru&display=swap');
+
+:root{
+  --ink:#16121F;
+  --cream:#FFF6E9;
+  --pink:#FF3E7F;
+  --yellow:#FFD23F;
+  --cyan:#3EC6FF;
+  --green:#4CD787;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:var(--ink);
+  font-family:'Kosugi Maru','Hiragino Maru Gothic ProN',sans-serif; color:var(--cream);
+  user-select:none;}
+canvas#c{position:fixed;inset:0;display:block;}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none;}
+#hud.show{display:block;}
+#topbar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+  align-items:center;padding:18px 26px;background:linear-gradient(to bottom, rgba(22,18,31,.85), rgba(22,18,31,0));}
+#trackLabel{font-family:'Mochiy Pop One',sans-serif;font-size:15px;color:var(--yellow);letter-spacing:2px;}
+#stageName{font-family:'Mochiy Pop One',sans-serif;font-size:20px;color:var(--cream);margin-top:2px;}
+#scoreBox{text-align:right;font-family:'Mochiy Pop One',sans-serif;}
+#scoreVal{font-size:26px;color:var(--yellow);}
+#comboWrap{font-size:13px;color:var(--cyan);margin-top:2px;}
+#comboVal{font-size:16px;color:var(--pink);}
+
+#beatRing{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:54px;height:54px;
+  border-radius:50%;border:4px solid var(--yellow);opacity:.85;
+  box-shadow:0 0 14px rgba(255,210,63,.6);transition:transform .08s ease-out;}
+
+#judgeText{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%) scale(.6);
+  font-family:'Mochiy Pop One',sans-serif;font-size:52px;letter-spacing:3px;opacity:0;
+  text-shadow:0 0 18px rgba(0,0,0,.5);}
+#judgeText.show{animation:judgePop .38s ease-out;}
+@keyframes judgePop{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.5);}
+  25%{opacity:1;transform:translate(-50%,-50%) scale(1.15);}
+  60%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  100%{opacity:0;transform:translate(-50%,-55%) scale(.95);}
+}
+
+#screenFlash{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;mix-blend-mode:screen;}
+.flash-perfect{background:radial-gradient(circle at 50% 45%, rgba(255,210,63,.6), transparent 60%); animation:flashPop .28s ease-out;}
+.flash-good{background:radial-gradient(circle at 50% 45%, rgba(62,198,255,.42), transparent 60%); animation:flashPop .22s ease-out;}
+.flash-miss{background:radial-gradient(circle at 50% 45%, rgba(255,62,127,.3), transparent 65%); animation:flashPop .2s ease-out;}
+@keyframes flashPop{0%{opacity:1;}100%{opacity:0;}}
+
+#c.shake{animation:shakeKey .16s ease-out;}
+@keyframes shakeKey{
+  0%{transform:translate(0,0);}
+  25%{transform:translate(-5px,3px);}
+  50%{transform:translate(4px,-4px);}
+  75%{transform:translate(-3px,-2px);}
+  100%{transform:translate(0,0);}
+}
+
+#comboPopup{position:fixed;top:30%;left:50%;transform:translate(-50%,-50%) scale(.5);
+  font-family:'Mochiy Pop One',sans-serif;font-size:34px;color:var(--yellow);opacity:0;
+  text-shadow:0 0 22px rgba(255,210,63,.8);z-index:7;pointer-events:none;letter-spacing:2px;}
+#comboPopup.show{animation:comboPop .65s ease-out;}
+@keyframes comboPop{
+  0%{opacity:0; transform:translate(-50%,-50%) scale(.4) rotate(-8deg);}
+  30%{opacity:1; transform:translate(-50%,-50%) scale(1.25) rotate(4deg);}
+  60%{opacity:1; transform:translate(-50%,-50%) scale(1) rotate(0deg);}
+  100%{opacity:0; transform:translate(-50%,-62%) scale(.9);}
+}
+
+#beatBar{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);width:min(70vw,520px);
+  height:10px;border-radius:6px;background:rgba(255,246,233,.15);overflow:hidden;}
+#beatFill{width:0%;height:100%;background:linear-gradient(90deg,var(--pink),var(--yellow));}
+
+#instructions{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);text-align:center;
+  font-size:14px;color:rgba(255,246,233,.75);background:rgba(22,18,31,.55);padding:6px 16px;
+  border-radius:20px;letter-spacing:1px;}
+
+body.touch-mode #beatBar{bottom:130px;}
+body.touch-mode #instructions{bottom:156px;max-width:82vw;}
+
+#touchControls{position:fixed;left:0;right:0;bottom:0;height:112px;display:none;z-index:8;
+  align-items:center;justify-content:center;gap:14px;padding:0 16px 14px 16px;
+  background:linear-gradient(to top, rgba(22,18,31,.85), rgba(22,18,31,0));
+  pointer-events:none;}
+#touchControls.show{display:flex;}
+.touchBtn{pointer-events:auto;display:none;align-items:center;justify-content:center;
+  font-family:'Mochiy Pop One',sans-serif;color:var(--ink);background:var(--cream);
+  border-radius:16px;box-shadow:0 5px 0 rgba(0,0,0,.3);user-select:none;-webkit-user-select:none;
+  touch-action:none;font-size:15px;letter-spacing:1px;transition:transform .05s ease;}
+.touchBtn.active{transform:translateY(4px) scale(.96);box-shadow:0 1px 0 rgba(0,0,0,.3);
+  background:var(--yellow);}
+.touchBtn[data-key="Space"]{width:min(46vw,220px);height:64px;}
+.touchBtn[data-key="KeyA"], .touchBtn[data-key="KeyS"], .touchBtn[data-key="KeyD"]{width:64px;height:64px;}
+
+/* ---------- Screens ---------- */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;z-index:10;background:radial-gradient(circle at 50% 30%, #241D33 0%, var(--ink) 70%);
+  transition:opacity .35s ease;}
+.screen.hidden{display:none;}
+.eyebrow{font-family:'Mochiy Pop One',sans-serif;color:var(--cyan);font-size:14px;letter-spacing:4px;margin-bottom:10px;}
+h1{font-family:'Mochiy Pop One',sans-serif;font-size:clamp(32px,7vw,58px);margin:0 0 6px 0;color:var(--cream);
+  text-shadow:0 4px 0 var(--pink);}
+h2{font-family:'Mochiy Pop One',sans-serif;font-size:clamp(26px,5vw,40px);margin:0 0 14px 0;}
+p.sub{max-width:480px;line-height:1.7;color:rgba(255,246,233,.8);font-size:15px;margin:0 0 26px 0;}
+.btn{font-family:'Mochiy Pop One',sans-serif;font-size:16px;letter-spacing:2px;color:var(--ink);
+  background:var(--yellow);border:none;padding:14px 42px;border-radius:40px;cursor:pointer;
+  box-shadow:0 6px 0 #B88E1F,0 6px 18px rgba(0,0,0,.35);transition:transform .12s ease;}
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 #B88E1F;}
+.btn.alt{background:var(--pink);box-shadow:0 6px 0 #A11F4C,0 6px 18px rgba(0,0,0,.35);}
+
+.howto{margin-top:34px;display:flex;gap:20px;flex-wrap:wrap;justify-content:center;max-width:640px;}
+.howto div{background:rgba(255,246,233,.06);border:1px solid rgba(255,246,233,.15);border-radius:14px;
+  padding:12px 16px;font-size:12.5px;width:130px;line-height:1.5;}
+.howto b{display:block;color:var(--yellow);font-family:'Mochiy Pop One',sans-serif;font-size:12px;margin-bottom:4px;}
+
+.keys{display:flex;gap:10px;justify-content:center;margin:16px 0 6px 0;flex-wrap:wrap;}
+.keycap{font-family:'Mochiy Pop One',sans-serif;font-size:14px;color:var(--ink);background:var(--cream);
+  border-radius:8px;padding:9px 16px;box-shadow:0 3px 0 rgba(0,0,0,.3);letter-spacing:1px;min-width:28px;text-align:center;}
+.keysNote{font-size:12px;color:rgba(255,246,233,.55);margin:-8px 0 20px 0;}
+
+#resultScreen .stat, #allClearScreen .stat{font-size:15px;margin:2px 0;color:rgba(255,246,233,.85);}
+#resultScreen .accBig, #allClearScreen .accBig{font-family:'Mochiy Pop One',sans-serif;font-size:44px;color:var(--green);margin:10px 0;}
+#resultScreen .accBig.fail, #allClearScreen .accBig.fail{color:var(--pink);}
+#allClearScreen .accBig.ss{color:#FFE873; text-shadow:0 0 26px rgba(255,232,115,.9), 0 0 50px rgba(255,210,63,.6); animation:ssGlow 1.1s ease-in-out infinite;}
+@keyframes ssGlow{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+
+#countdown{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
+  pointer-events:none;}
+#countdown span{font-family:'Mochiy Pop One',sans-serif;font-size:110px;color:var(--yellow);
+  text-shadow:0 0 30px rgba(255,210,63,.7);}
+
+.trackDots{display:flex;gap:8px;margin-top:18px;}
+.trackDots div{width:10px;height:10px;border-radius:50%;background:rgba(255,246,233,.25);}
+.trackDots div.done{background:var(--green);}
+.trackDots div.cur{background:var(--yellow);}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="screenFlash"></div>
+<div id="comboPopup"></div>
+
+<div id="hud">
+  <div id="topbar">
+    <div>
+      <div id="trackLabel">TRACK <span id="trackNo">01</span> / 07</div>
+      <div id="stageName">-</div>
+    </div>
+    <div id="scoreBox">
+      <div id="scoreVal">0</div>
+      <div id="comboWrap">COMBO <span id="comboVal">0</span></div>
+    </div>
+  </div>
+  <div id="beatRing"></div>
+  <div id="judgeText"></div>
+  <div id="instructions"></div>
+  <div id="beatBar"><div id="beatFill"></div></div>
+</div>
+
+<div id="countdown"><span id="countdownText">3</span></div>
+
+<div id="touchControls">
+  <button class="touchBtn" data-key="KeyA">A</button>
+  <button class="touchBtn" data-key="KeyS">S</button>
+  <button class="touchBtn" data-key="Space">SPACE</button>
+  <button class="touchBtn" data-key="KeyD">D</button>
+</div>
+
+<div id="titleScreen" class="screen">
+  <div class="eyebrow">3D RHYTHM STAGE GAME</div>
+  <h1>リズム★オーケストラ</h1>
+  <p class="sub">7つのトラック、7つの全く違うリズムゲーム。タップだけじゃなく長押しノーツも登場。ビートに乗って全ステージクリアを目指そう。</p>
+  <div class="keys">
+    <div class="keycap">SPACE</div>
+    <div class="keycap">A</div>
+    <div class="keycap">S</div>
+    <div class="keycap">D</div>
+  </div>
+  <p class="keysNote">操作はこの4キーだけ！メニューは Space か Enter で進めます</p>
+  <button class="btn" id="startBtn">スタート</button>
+  <p id="showLeaderboardLink" style="margin-top:14px;cursor:pointer;color:var(--cyan);text-decoration:underline;font-size:13px;">🏆 これまでの記録を見る</p>
+  <div class="howto">
+    <div><b>TRACK 01</b>スペースキーでドラム。長押しノーツにも注意</div>
+    <div><b>TRACK 02</b>A / D キーで左右にステップ</div>
+    <div><b>TRACK 03</b>↓の下＝自分。自分の番だけスペースキー</div>
+    <div><b>TRACK 04</b>光る導火線が来たら長押しで着火、打ち上げろ</div>
+    <div><b>TRACK 05</b>3レーンを A S D で叩き分け</div>
+    <div><b>TRACK 06</b>A/Dで移動しつつAIとパックを打ち合う</div>
+    <div><b>TRACK 07</b>相棒AIと二人三脚。ミスるとAIもよろける</div>
+  </div>
+</div>
+
+<div id="resultScreen" class="screen hidden">
+  <div class="eyebrow" id="resultEyebrow">RESULT</div>
+  <h2 id="resultTitle">STAGE CLEAR!</h2>
+  <div class="accBig" id="resultAcc">100%</div>
+  <div class="stat" id="resultPerfect">PERFECT: 0</div>
+  <div class="stat" id="resultGood">GOOD: 0</div>
+  <div class="stat" id="resultMiss">MISS: 0</div>
+  <div class="stat" id="resultScoreLine" style="margin-top:8px;">SCORE 0</div>
+  <button class="btn" id="resultBtn" style="margin-top:24px;">次のステージへ</button>
+  <p class="keysNote" style="margin-top:10px;">（Space か Enter でも進めます）</p>
+  <div class="trackDots" id="trackDots"></div>
+</div>
+
+<div id="allClearScreen" class="screen hidden">
+  <div class="eyebrow">CONGRATULATIONS</div>
+  <h1>ALL TRACKS CLEAR!</h1>
+  <div class="accBig" id="finalRank">S</div>
+  <p class="sub" id="finalRankText" style="margin-bottom:6px;">最高！</p>
+  <div class="stat" id="finalTotalScore">TOTAL SCORE 0</div>
+  <div class="stat" id="finalAvgAcc">AVERAGE ACCURACY 0%</div>
+  <div style="max-width:420px;width:90%;margin-top:18px;">
+    <div class="eyebrow" style="font-size:12px;">🏆 これまでの記録</div>
+    <div id="leaderboardListAllClear"></div>
+  </div>
+  <button class="btn" id="restartAllBtn" style="margin-top:20px;">最初からもう一度</button>
+  <p id="acToTitleLink" style="margin-top:14px;cursor:pointer;color:var(--cyan);text-decoration:underline;font-size:13px;">タイトルへ戻る</p>
+  <p class="keysNote" style="margin-top:10px;">（Space か Enter でも進めます）</p>
+</div>
+
+<div id="leaderboardScreen" class="screen hidden">
+  <div class="eyebrow">LEADERBOARD</div>
+  <h2>これまでの記録</h2>
+  <div id="leaderboardListStandalone" style="max-width:420px;width:90%;margin:10px 0 22px 0;"></div>
+  <button class="btn" id="lbBackBtn">タイトルへ戻る</button>
+  <p id="lbResetLink" style="margin-top:16px;cursor:pointer;color:rgba(255,246,233,.45);text-decoration:underline;font-size:12px;">記録をリセットする</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================================================
+   リズム★オーケストラ  -  core engine
+   ============================================================ */
+
+const COLORS = {ink:0x16121F, cream:0xFFF6E9, pink:0xFF3E7F, yellow:0xFFD23F, cyan:0x3EC6FF, green:0x4CD787};
+const CFG = { perfectWindow:0.11, goodWindow:0.24, holdReleaseWindow:0.40, holdPerfectWindow:0.20 };
+
+let renderer, scene, camera, clockStart;
+let audioCtx;
+let mode = 'title'; // title | countdown | playing | result | allclear
+let currentStageIdx = 0;
+let engine = null;
+let stageCleared = [false,false,false,false,false,false,false];
+let stageScores = [];
+let stageAccuracies = [];
+let totalPerfectAll = 0, totalGoodAll = 0, totalMissAll = 0;
+
+/* ---------------- boot three.js ---------------- */
+function initThree(){
+  const canvas = document.getElementById('c');
+  renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(58, window.innerWidth/window.innerHeight, 0.1, 200);
+
+  const amb = new THREE.AmbientLight(0xffffff, 0.65);
+  scene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(4,8,6);
+  scene.add(dir);
+
+  window.addEventListener('resize', ()=>{
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  requestAnimationFrame(loop);
+}
+
+function initAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === 'suspended'){
+    audioCtx.resume().catch(()=>{});
+  }
+}
+
+function beep(freq, dur, type, vol, delay){
+  if(!audioCtx) return;
+  const t = audioCtx.currentTime + (delay||0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol!==undefined?vol:0.2, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(t); osc.stop(t+dur+0.02);
+}
+
+function outline(mesh, color){
+  const edges = new THREE.EdgesGeometry(mesh.geometry);
+  const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({color: color!==undefined?color:COLORS.ink, linewidth:2}));
+  mesh.add(line);
+  return mesh;
+}
+
+function makeMesh(geo, color, opts){
+  opts = opts || {};
+  const mat = new THREE.MeshStandardMaterial({color:color, roughness:opts.roughness!==undefined?opts.roughness:0.6, metalness:opts.metalness||0.05, emissive:opts.emissive||0x000000, emissiveIntensity:opts.emissiveIntensity||0});
+  const m = new THREE.Mesh(geo, mat);
+  if(opts.outline!==false) outline(m, opts.outlineColor);
+  return m;
+}
+
+/* ============================================================
+   STAGE DEFINITIONS
+   ============================================================ */
+
+const STAGES = [];
+
+/* ---------- TRACK 01 : ビートドラム (approaching notes, Space) ---------- */
+STAGES.push({
+  id:'drum', name:'ビートドラム', bpm:104, bg:0x2C2140,
+  bassScale:[130.8,130.8,155.6,174.6,196,174.6,155.6,130.8],
+  controls:['Space'], penalizeWrongPress:false,
+  instructions:'タップは即たたく、長いノーツは押しっぱなし！',
+  buildPattern(){
+    const p=[]; let b=4;
+    const seq=['tap','tap','hold','tap','tap','tap','hold','tap','tap','tap','hold','tap','tap'];
+    seq.forEach(type=>{
+      if(type==='hold'){
+        const len = 1.5 + Math.random()*0.8;
+        p.push({beat:b, key:'Space', type:'hold', holdBeats:len});
+        b += len + 1;
+      } else {
+        p.push({beat:b, key:'Space', type:'tap'});
+        b += 1;
+      }
+    });
+    return p;
+  },
+  travelBeats:3.2,
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    S.noteObjs = [];
+    // lane
+    const lane = makeMesh(new THREE.BoxGeometry(3,0.1,16), 0x3A2C57, {outline:false});
+    lane.position.set(0,-0.5,-6);
+    S.group.add(lane);
+    // hit line
+    const ring = makeMesh(new THREE.TorusGeometry(0.9,0.12,10,24), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.5});
+    ring.rotation.x = Math.PI/2;
+    ring.position.set(0,-0.42,0);
+    S.group.add(ring); S.ring = ring;
+    // drum character
+    const drum = makeMesh(new THREE.CylinderGeometry(0.9,0.9,0.7,20), COLORS.pink);
+    drum.position.set(0,-0.1,0.9);
+    S.group.add(drum); S.drum = drum;
+    const drumTop = makeMesh(new THREE.CylinderGeometry(0.95,0.95,0.08,20), COLORS.cream);
+    drumTop.position.set(0,0.26,0.9);
+    S.group.add(drumTop);
+    // notes
+    const rate = 16.4/this.travelBeats;
+    engine.pattern.forEach(ev=>{
+      let n;
+      if(ev.type==='hold'){
+        const len = Math.max(0.7, ev.holdBeats*rate);
+        n = makeMesh(new THREE.BoxGeometry(0.55,0.55,len), COLORS.green, {emissive:COLORS.green, emissiveIntensity:0.35});
+        ev.noteLen = len;
+      } else {
+        n = makeMesh(new THREE.IcosahedronGeometry(0.42,0), COLORS.cyan, {emissive:COLORS.cyan, emissiveIntensity:0.3});
+      }
+      n.position.set(0,0.1,-16);
+      S.group.add(n);
+      ev.obj = n;
+    });
+    camera.position.set(0,1.6,5.4);
+    camera.lookAt(0,0.1,-4);
+  },
+  update(S, curBeat, dt){
+    engine.pattern.forEach(ev=>{
+      if(ev.type==='hold'){
+        // position by the note's CENTER beat (start + half duration)
+        const centerBeat = ev.beat + ev.holdBeats/2;
+        const t = (curBeat - (centerBeat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-16, 0.4, THREE.MathUtils.clamp(t,0,1.4));
+        ev.obj.position.z = z;
+        ev.obj.visible = t > -0.08 && t < 1.5;
+        let col = COLORS.green;
+        if(ev.judged) col = ev.result==='MISS' ? 0x555566 : COLORS.yellow;
+        else if(ev.holding) col = COLORS.yellow;
+        ev.obj.material.color.set(col);
+        ev.obj.material.emissiveIntensity = ev.holding ? 0.9 : 0.35;
+      } else {
+        const t = (curBeat - (ev.beat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-16, 0.4, THREE.MathUtils.clamp(t,0,1.25));
+        ev.obj.position.z = z;
+        ev.obj.rotation.y += dt*2.4; ev.obj.rotation.x += dt*1.6;
+        ev.obj.visible = t > -0.05 && t < 1.35;
+        ev.obj.material.color.set(ev.judged ? (ev.result==='MISS'?0x555566:COLORS.green) : COLORS.cyan);
+      }
+    });
+    S.drum.scale.setScalar(THREE.MathUtils.lerp(S.drum.scale.x,1,0.2));
+  },
+  onJudge(S, res, ev){
+    S.drum.scale.setScalar(1.25);
+    S.ring.material.emissiveIntensity = res==='MISS'?0.1:0.9;
+  },
+  onHoldStart(S, ev){
+    S.ring.material.emissiveIntensity = 1.0;
+  },
+  teardown(S){ scene.remove(S.group); }
+});
+
+/* ---------- TRACK 02 : みぎひだりマーチ (A/D keys) ---------- */
+STAGES.push({
+  id:'march', name:'みぎひだりマーチ', bpm:100, bg:0x3A2A18,
+  bassScale:[98,98,110,98,123.5,110,98,98],
+  controls:['KeyA','KeyD'], penalizeWrongPress:true,
+  instructions:'サインが光った方の A / D キーを押そう！（判定だけ出ます）',
+  buildPattern(){
+    const p=[]; let b=4;
+    for(let i=0;i<14;i++){ p.push({beat:b, key: (Math.random()<0.5?'KeyA':'KeyD')}); b+=1; }
+    return p;
+  },
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    const floor = makeMesh(new THREE.BoxGeometry(6,0.3,6), 0x543A20, {outline:false});
+    floor.position.set(0,-0.8,0);
+    S.group.add(floor);
+    const soldier = makeMesh(new THREE.BoxGeometry(0.8,1.2,0.6), COLORS.cyan);
+    soldier.position.set(0,-0.05,0);
+    S.group.add(soldier); S.soldier = soldier;
+    const head = makeMesh(new THREE.SphereGeometry(0.36,14,14), COLORS.cream);
+    head.position.set(0,0.85,0); soldier.add(head);
+
+    const signL = makeMesh(new THREE.ConeGeometry(0.5,0.9,4), COLORS.pink, {emissive:COLORS.pink, emissiveIntensity:0.15});
+    signL.rotation.z = Math.PI/2; signL.position.set(-2.1,0.6,-1.2);
+    const signR = makeMesh(new THREE.ConeGeometry(0.5,0.9,4), COLORS.green, {emissive:COLORS.green, emissiveIntensity:0.15});
+    signR.rotation.z = -Math.PI/2; signR.position.set(2.1,0.6,-1.2);
+    S.group.add(signL); S.group.add(signR);
+    S.signL = signL; S.signR = signR;
+
+    camera.position.set(0,1.8,4.8);
+    camera.lookAt(0,0.2,-1);
+  },
+  update(S, curBeat, dt){
+    let activeEv = null;
+    engine.pattern.forEach(ev=>{
+      if(!ev.judged && Math.abs(curBeat-ev.beat)<0.5) activeEv = ev;
+    });
+    const glowL = activeEv && activeEv.key==='KeyA' ? 1.1 : 0.15;
+    const glowR = activeEv && activeEv.key==='KeyD' ? 1.1 : 0.15;
+    S.signL.material.emissiveIntensity = THREE.MathUtils.lerp(S.signL.material.emissiveIntensity, glowL, 0.3);
+    S.signR.material.emissiveIntensity = THREE.MathUtils.lerp(S.signR.material.emissiveIntensity, glowR, 0.3);
+    S.soldier.rotation.z = Math.sin(curBeat*Math.PI)*0.08;
+    S.soldier.position.y = -0.05 + Math.abs(Math.sin(curBeat*Math.PI))*0.08;
+    S.soldier.scale.setScalar(THREE.MathUtils.lerp(S.soldier.scale.x,1,0.15));
+    S.soldier.material.emissiveIntensity = THREE.MathUtils.lerp(S.soldier.material.emissiveIntensity||0,0,0.08);
+  },
+  onInput(S, key, ev){},
+  onJudge(S, res, ev){
+    S.soldier.scale.setScalar(1.2);
+    S.soldier.material.emissive = new THREE.Color(res==='MISS'? 0xFF3E7F : (res==='PERFECT'?0xFFD23F:0x3EC6FF));
+    S.soldier.material.emissiveIntensity = 0.7;
+  },
+  teardown(S){ scene.remove(S.group); }
+});
+
+/* ---------- TRACK 03 : おうえんコール (call & response, only your beat) ---------- */
+STAGES.push({
+  id:'cheer', name:'おうえんコール', bpm:112, bg:0x2A1830,
+  bassScale:[174.6,196,220,246.9,220,196,174.6,196],
+  controls:['Space'], penalizeWrongPress:true,
+  instructions:'↓の下＝自分。光った時だけスペースキー！',
+  buildPattern(){
+    const p=[]; let b=7;
+    for(let i=0;i<8;i++){ p.push({beat:b, key:'Space'}); b+=4; } // every 4th beat is player's turn
+    return p;
+  },
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    const names = [COLORS.cyan, COLORS.green, COLORS.pink, COLORS.yellow];
+    S.singers = [];
+    for(let i=0;i<4;i++){
+      const s = makeMesh(new THREE.CylinderGeometry(0.4,0.4,1.1,14), names[i]);
+      s.position.set((i-1.5)*1.3, 0, 0);
+      const head = makeMesh(new THREE.SphereGeometry(0.32,14,14), COLORS.cream);
+      head.position.set(0,0.75,0); s.add(head);
+      S.group.add(s);
+      S.singers.push(s);
+    }
+    S.playerIdx = 3;
+    // down-arrow marker above the player's character so it's unmistakable
+    const arrow = makeMesh(new THREE.ConeGeometry(0.26,0.55,4), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.7});
+    arrow.rotation.x = Math.PI;
+    arrow.position.set(S.singers[S.playerIdx].position.x, 1.75, 0);
+    S.group.add(arrow); S.arrow = arrow;
+    const floor = makeMesh(new THREE.BoxGeometry(8,0.3,3), 0x3D2846, {outline:false});
+    floor.position.set(0,-0.8,0);
+    S.group.add(floor);
+    camera.position.set(0,1.3,5.4);
+    camera.lookAt(0,0.1,0);
+  },
+  update(S, curBeat, dt){
+    const beatFloor = Math.floor(curBeat+0.001);
+    const activeIdx = ((beatFloor % 4)+4)%4;
+    S.singers.forEach((s,i)=>{
+      const isActive = i===activeIdx && curBeat>=4;
+      const targetScale = isActive ? 1.25 : 1.0;
+      s.scale.y = THREE.MathUtils.lerp(s.scale.y, targetScale, 0.25);
+      s.material.emissiveIntensity = THREE.MathUtils.lerp(s.material.emissiveIntensity||0, isActive?0.8:0.05, 0.3);
+    });
+    S.arrow.position.y = 1.75 + Math.sin(curBeat*Math.PI)*0.15;
+  },
+  onJudge(S, res, ev){
+    const p = S.singers[S.playerIdx];
+    p.scale.y = res==='MISS' ? 0.8 : 1.5;
+  },
+  teardown(S){ scene.remove(S.group); }
+});
+
+/* ---------- TRACK 04 : 花火マスター (hold to light the fuse, release to launch a firework) ---------- */
+STAGES.push({
+  id:'fireworks', name:'花火マスター', bpm:92, bg:0x0A0E24,
+  bassScale:[146.8,164.8,174.6,196,174.6,164.8,146.8,130.8],
+  controls:['Space'], penalizeWrongPress:false,
+  instructions:'光る導火線が来たら長押しで着火、消えたら離して打ち上げろ！',
+  buildPattern(){
+    const p=[]; let b=4;
+    const strokes=[1.0,1.0,1.8,1.0,2.3,1.0,1.5,2.6,1.0,1.0];
+    strokes.forEach(len=>{
+      p.push({beat:b, key:'Space', type:'hold', holdBeats:len});
+      b += len + 1.0;
+    });
+    return p;
+  },
+  travelBeats:2.8,
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    const ground = makeMesh(new THREE.BoxGeometry(8,0.3,18), 0x151233, {outline:false});
+    ground.position.set(0,-0.9,-4);
+    S.group.add(ground);
+    const cannon = makeMesh(new THREE.CylinderGeometry(0.4,0.55,1.0,16), 0x5A4A7A);
+    cannon.rotation.x = -0.35;
+    cannon.position.set(0,-0.4,1.1);
+    S.group.add(cannon); S.cannon = cannon;
+    const fuseGlow = makeMesh(new THREE.SphereGeometry(0.16,12,12), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.2, outline:false});
+    fuseGlow.position.set(0,0.35,0.55);
+    cannon.add(fuseGlow); S.fuseGlow = fuseGlow;
+    // launch-pad ring: where the fuse marker must be held
+    const ring = makeMesh(new THREE.TorusGeometry(0.65,0.09,10,20), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.5});
+    ring.rotation.x = Math.PI/2; ring.position.set(0,-0.74,1.1);
+    S.group.add(ring); S.ring = ring;
+    // approaching fuse markers, travelling toward the cannon
+    const rate = 15/this.travelBeats;
+    engine.pattern.forEach(ev=>{
+      const len = Math.max(0.8, ev.holdBeats*rate);
+      const n = makeMesh(new THREE.BoxGeometry(0.5,0.5,len), COLORS.pink, {emissive:COLORS.pink, emissiveIntensity:0.35});
+      n.position.set(0,-0.2,-14);
+      S.group.add(n); ev.obj = n;
+    });
+    S.holding = false;
+    camera.position.set(0,1.5,5.4);
+    camera.lookAt(0,0.6,-3);
+  },
+  update(S, curBeat, dt){
+    let nextEv = null;
+    engine.pattern.forEach(ev=>{
+      const centerBeat = ev.beat + ev.holdBeats/2;
+      const t = (curBeat - (centerBeat - this.travelBeats)) / this.travelBeats;
+      const z = THREE.MathUtils.lerp(-14, 1.1, THREE.MathUtils.clamp(t,0,1.4));
+      ev.obj.position.z = z;
+      ev.obj.visible = t>-0.08 && t<1.5;
+      let col = COLORS.pink;
+      if(ev.judged) col = ev.result==='MISS' ? 0x555566 : COLORS.green;
+      else if(ev.holding) col = COLORS.yellow;
+      ev.obj.material.color.set(col);
+      if(!ev.judged && !nextEv) nextEv = ev;
+    });
+
+    const ringPulse = S.holding ? 1.0 : 0.4;
+    S.ring.material.emissiveIntensity = THREE.MathUtils.lerp(S.ring.material.emissiveIntensity||0.4, ringPulse, 0.3);
+    S.ring.scale.setScalar(S.holding ? 1.25 : 1.0);
+    S.ring.material.color.set(S.holding ? COLORS.green : COLORS.yellow);
+    S.fuseGlow.material.emissiveIntensity = S.holding ? (0.6+Math.sin(curBeat*20)*0.4) : 0.2;
+    S.cannon.rotation.z = S.holding ? Math.sin(curBeat*10)*0.03 : 0;
+
+    // live on-screen hint
+    const instrEl = document.getElementById('instructions');
+    if(S.holding){
+      instrEl.textContent = '着火中！導火線が消えるまで押しっぱなし！';
+    } else if(nextEv && (nextEv.beat - curBeat) < 0.7 && (nextEv.beat - curBeat) > -0.3){
+      instrEl.textContent = '今だ！スペースを押しっぱなしに！';
+    } else {
+      instrEl.textContent = 'ピンクの棒が輪まで来たら長押し、消えたら離して打ち上げ！';
+    }
+  },
+  onHoldStart(S, ev){ S.holding = true; },
+  onHoldEnd(S, ev){
+    S.holding = false;
+    if(ev.result !== 'MISS'){
+      launchFirework(S, ev.result);
+    } else {
+      fizzleSmoke(S);
+    }
+  },
+  onJudge(S, res, ev){},
+  teardown(S){ scene.remove(S.group); }
+});
+
+function launchFirework(S, res){
+  const shell = makeMesh(new THREE.SphereGeometry(0.18,12,12), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.6, outline:false});
+  shell.position.set(0,0.1,-1.5);
+  S.group.add(shell);
+  const apex = { x: (Math.random()-0.5)*3, y: 4.5+Math.random()*1.5, z: -6-Math.random()*2 };
+  const start = performance.now();
+  const riseDur = 550;
+  function rise(){
+    const p = Math.min(1, (performance.now()-start)/riseDur);
+    shell.position.x = THREE.MathUtils.lerp(0, apex.x, p);
+    shell.position.y = THREE.MathUtils.lerp(0.1, apex.y, p);
+    shell.position.z = THREE.MathUtils.lerp(-1.5, apex.z, p);
+    if(p<1){ requestAnimationFrame(rise); }
+    else {
+      const burstPos = shell.position.clone();
+      if(shell.parent) shell.parent.remove(shell);
+      if(res==='PERFECT'){
+        // big showy chrysanthemum burst + a delayed secondary pop for extra flair
+        explodeFirework(S, burstPos, [COLORS.yellow,COLORS.pink,COLORS.cyan,COLORS.green], 34, 1.6);
+        screenFlash('perfect');
+        shakeCanvas();
+        setTimeout(()=>{
+          const pos2 = burstPos.clone();
+          pos2.x += (Math.random()-0.5)*1.2;
+          pos2.y += 0.6 + Math.random()*0.6;
+          explodeFirework(S, pos2, [COLORS.pink,COLORS.yellow], 16, 1.1);
+          screenFlash('perfect');
+        }, 220);
+      } else {
+        explodeFirework(S, burstPos, [COLORS.cyan,COLORS.green], 11, 1.0);
+        screenFlash('good');
+      }
+    }
+  }
+  requestAnimationFrame(rise);
+}
+
+function explodeFirework(S, pos, colors, count, scale){
+  scale = scale || 1.0;
+  for(let i=0;i<count;i++){
+    const color = colors[i % colors.length];
+    const frag = makeMesh(new THREE.SphereGeometry(0.09*Math.min(scale,1.3),6,6), color, {emissive:color, emissiveIntensity:0.9, outline:false});
+    frag.position.copy(pos);
+    S.group.add(frag);
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.random()*Math.PI;
+    const speed = (2.2 + Math.random()*1.8) * scale;
+    const vel = {
+      x: Math.sin(phi)*Math.cos(theta)*speed,
+      y: Math.sin(phi)*Math.sin(theta)*speed + 1.0,
+      z: Math.cos(phi)*speed
+    };
+    const start = performance.now();
+    const dur = (650 + Math.random()*250) * (scale>1?1.15:1);
+    function anim(){
+      const t = (performance.now()-start)/1000;
+      const p = Math.min(1, (performance.now()-start)/dur);
+      frag.position.x = pos.x + vel.x*t;
+      frag.position.y = pos.y + vel.y*t - 2.2*t*t;
+      frag.position.z = pos.z + vel.z*t;
+      frag.material.opacity = 1-p;
+      frag.material.transparent = true;
+      frag.scale.setScalar((1-p*0.6));
+      if(p<1) requestAnimationFrame(anim); else if(frag.parent) frag.parent.remove(frag);
+    }
+    requestAnimationFrame(anim);
+  }
+}
+
+function fizzleSmoke(S){
+  const smoke = makeMesh(new THREE.SphereGeometry(0.22,10,10), 0x555566, {outline:false, roughness:1});
+  smoke.position.set(0,0.2,1.1);
+  S.group.add(smoke);
+  const start = performance.now();
+  const dur = 500;
+  function anim(){
+    const p = Math.min(1,(performance.now()-start)/dur);
+    smoke.position.y += 0.008;
+    smoke.scale.setScalar(1+p*1.5);
+    smoke.material.opacity = 1-p;
+    smoke.material.transparent = true;
+    if(p<1) requestAnimationFrame(anim); else if(smoke.parent) smoke.parent.remove(smoke);
+  }
+  requestAnimationFrame(anim);
+}
+
+/* ---------- TRACK 05 : 3レーンビート (A / S / D, tap+hold) ---------- */
+STAGES.push({
+  id:'lane3', name:'3レーンビート', bpm:108, bg:0x241640,
+  bassScale:[196,220,246.9,261.6,246.9,220,196,174.6],
+  controls:['KeyA','KeyS','KeyD'], penalizeWrongPress:false,
+  instructions:'レーンに合わせて A S D ！長いノーツは押しっぱなし',
+  laneX:{KeyA:-1.5, KeyS:0, KeyD:1.5},
+  laneColor:{KeyA:COLORS.cyan, KeyS:COLORS.yellow, KeyD:COLORS.pink},
+  buildPattern(){
+    const p=[]; let b=4;
+    const keys=['KeyA','KeyS','KeyD'];
+    for(let i=0;i<24;i++){
+      const key = keys[Math.floor(Math.random()*3)];
+      if(Math.random()<0.22){
+        const len = 1.0+Math.random()*0.6;
+        p.push({beat:b, key, type:'hold', holdBeats:len});
+        b += len + 0.9;
+      } else {
+        p.push({beat:b, key, type:'tap'});
+        b += 0.85;
+      }
+    }
+    return p;
+  },
+  travelBeats:3.0,
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    ['KeyA','KeyS','KeyD'].forEach(key=>{
+      const lane = makeMesh(new THREE.BoxGeometry(1.1,0.08,16), 0x342458, {outline:false});
+      lane.position.set(this.laneX[key], -0.5, -6);
+      S.group.add(lane);
+      const ring = makeMesh(new THREE.TorusGeometry(0.55,0.09,10,20), this.laneColor[key], {emissive:this.laneColor[key], emissiveIntensity:0.5});
+      ring.rotation.x = Math.PI/2;
+      ring.position.set(this.laneX[key], -0.42, 0);
+      S.group.add(ring);
+    });
+    const rate = 16.4/this.travelBeats;
+    engine.pattern.forEach(ev=>{
+      let n;
+      if(ev.type==='hold'){
+        const len = Math.max(0.6, ev.holdBeats*rate);
+        n = makeMesh(new THREE.BoxGeometry(0.45,0.45,len), this.laneColor[ev.key], {emissive:this.laneColor[ev.key], emissiveIntensity:0.35});
+      } else {
+        n = makeMesh(new THREE.OctahedronGeometry(0.36,0), this.laneColor[ev.key], {emissive:this.laneColor[ev.key], emissiveIntensity:0.3});
+      }
+      n.position.set(this.laneX[ev.key],0.1,-16);
+      S.group.add(n);
+      ev.obj = n;
+    });
+    camera.position.set(0,1.7,5.6);
+    camera.lookAt(0,0.1,-4);
+  },
+  update(S, curBeat, dt){
+    engine.pattern.forEach(ev=>{
+      if(ev.type==='hold'){
+        const centerBeat = ev.beat + ev.holdBeats/2;
+        const t = (curBeat - (centerBeat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-16, 0.4, THREE.MathUtils.clamp(t,0,1.4));
+        ev.obj.position.z = z;
+        ev.obj.visible = t>-0.08 && t<1.5;
+        let col = this.laneColor[ev.key];
+        if(ev.judged) col = ev.result==='MISS' ? 0x555566 : COLORS.green;
+        else if(ev.holding) col = COLORS.cream;
+        ev.obj.material.color.set(col);
+      } else {
+        const t = (curBeat - (ev.beat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-16, 0.4, THREE.MathUtils.clamp(t,0,1.25));
+        ev.obj.position.z = z;
+        ev.obj.rotation.y += dt*3;
+        ev.obj.visible = t>-0.05 && t<1.35;
+        ev.obj.material.color.set(ev.judged ? (ev.result==='MISS'?0x555566:COLORS.green) : this.laneColor[ev.key]);
+      }
+    });
+  },
+  onJudge(S, res, ev){},
+  teardown(S){ scene.remove(S.group); }
+});
+
+/* ---------- TRACK 06 : AIリズムホッケー (move with A/D, return shots from anywhere in the lane) ---------- */
+STAGES.push({
+  id:'hockey', name:'AIリズムホッケー', bpm:120, bg:0x101820,
+  bassScale:[110,110,116.5,110,130.8,116.5,110,110],
+  controls:['Space'], penalizeWrongPress:false, extraTouchKeys:['KeyA','KeyD'],
+  instructions:'A / D で横移動！パックの来る位置に合わせてスペースで打ち返す！',
+  courtHalfWidth:1.7,
+  buildPattern(){
+    const p=[]; let b=4;
+    const seq=['tap','tap','tap','hold','tap','tap','tap','tap','hold','tap','tap','tap','tap'];
+    seq.forEach(type=>{
+      const targetX = (Math.random()*2 - 1) * 1.55;
+      if(type==='hold'){
+        const len = 1.0+Math.random()*0.4;
+        p.push({beat:b, key:'Space', type:'hold', holdBeats:len, targetX});
+        b += len + 1;
+      } else {
+        p.push({beat:b, key:'Space', type:'tap', targetX});
+        b += 1;
+      }
+    });
+    return p;
+  },
+  travelBeats:2.4,
+  extraValidate(S, ev){
+    return Math.abs(S.paddleX - ev.targetX) <= 0.62;
+  },
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    const table = makeMesh(new THREE.BoxGeometry(4.2,0.15,14), 0x18324A, {outline:false});
+    table.position.set(0,-0.5,-4);
+    S.group.add(table);
+    const centerLine = makeMesh(new THREE.BoxGeometry(4.2,0.02,0.06), 0x2E4A66, {outline:false});
+    centerLine.position.set(0,-0.42,-4);
+    S.group.add(centerLine);
+    // side rails marking the movement range
+    [-1,1].forEach(side=>{
+      const rail = makeMesh(new THREE.BoxGeometry(0.12,0.3,14), 0x2E4A66, {outline:false});
+      rail.position.set(side*1.95, -0.35, -4);
+      S.group.add(rail);
+    });
+    // target marker: shows where the NEXT puck will need the paddle to be
+    const marker = makeMesh(new THREE.RingGeometry(0.35,0.5,24), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.6, outline:false});
+    marker.rotation.x = -Math.PI/2;
+    marker.position.set(0,-0.41,1.2);
+    S.group.add(marker); S.marker = marker;
+
+    const paddle = makeMesh(new THREE.CylinderGeometry(0.5,0.5,0.25,20), COLORS.cyan, {emissive:COLORS.cyan, emissiveIntensity:0.3});
+    paddle.position.set(0,-0.3,1.2);
+    S.group.add(paddle); S.paddle = paddle; S.paddleX = 0;
+    const aiPaddle = makeMesh(new THREE.CylinderGeometry(0.5,0.5,0.25,20), COLORS.pink, {emissive:COLORS.pink, emissiveIntensity:0.3});
+    aiPaddle.position.set(0,-0.3,-9.2);
+    S.group.add(aiPaddle); S.aiPaddle = aiPaddle;
+    const rate = 10.4/this.travelBeats;
+    engine.pattern.forEach(ev=>{
+      let n;
+      if(ev.type==='hold'){
+        const len = Math.max(0.6, ev.holdBeats*rate);
+        n = makeMesh(new THREE.CylinderGeometry(0.35,0.35,len,16), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.4});
+        n.rotation.x = Math.PI/2;
+      } else {
+        n = makeMesh(new THREE.CylinderGeometry(0.32,0.32,0.14,20), COLORS.cream, {emissive:COLORS.cream, emissiveIntensity:0.2});
+      }
+      n.position.set(ev.targetX,-0.32,-9);
+      S.group.add(n); ev.obj = n;
+    });
+    S.rally = 0; S.pointsYou = 0; S.pointsAI = 0;
+    camera.position.set(0,2.1,4.8);
+    camera.lookAt(0,-0.3,-4);
+  },
+  update(S, curBeat, dt){
+    // continuous A/D paddle movement within the court
+    const speed = 5.2;
+    if(physicalKeys['KeyA']) S.paddleX -= speed*dt;
+    if(physicalKeys['KeyD']) S.paddleX += speed*dt;
+    S.paddleX = THREE.MathUtils.clamp(S.paddleX, -this.courtHalfWidth, this.courtHalfWidth);
+    S.paddle.position.x = S.paddleX;
+
+    let nextEv = null;
+    engine.pattern.forEach(ev=>{
+      if(ev.type==='hold'){
+        const centerBeat = ev.beat + ev.holdBeats/2;
+        const t = (curBeat - (centerBeat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-9, 1.2, THREE.MathUtils.clamp(t,0,1.4));
+        ev.obj.position.z = z;
+        ev.obj.visible = t>-0.08 && t<1.5;
+        let col = COLORS.yellow;
+        if(ev.judged) col = ev.result==='MISS' ? 0x555566 : COLORS.green;
+        else if(ev.holding) col = COLORS.cream;
+        ev.obj.material.color.set(col);
+      } else {
+        const t = (curBeat - (ev.beat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-9, 1.2, THREE.MathUtils.clamp(t,0,1.25));
+        ev.obj.position.z = z;
+        ev.obj.rotation.z += dt*4;
+        ev.obj.visible = t>-0.05 && t<1.35;
+        ev.obj.material.color.set(ev.judged ? (ev.result==='MISS'?0x555566:COLORS.green) : COLORS.cream);
+      }
+      if(!ev.judged && !nextEv) nextEv = ev;
+    });
+
+    // target marker guides the player to the next required position
+    if(nextEv){
+      S.marker.position.x = THREE.MathUtils.lerp(S.marker.position.x, nextEv.targetX, 0.15);
+      const aligned = Math.abs(S.paddleX - nextEv.targetX) <= 0.62;
+      S.marker.material.color.set(aligned ? COLORS.green : COLORS.yellow);
+      S.marker.material.emissiveIntensity = aligned ? 0.9 : 0.5;
+    }
+
+    S.paddle.scale.setScalar(THREE.MathUtils.lerp(S.paddle.scale.x,1,0.2));
+    if(nextEv) S.aiPaddle.position.x = THREE.MathUtils.lerp(S.aiPaddle.position.x, nextEv.targetX, 0.03);
+    S.aiPaddle.material.emissiveIntensity = THREE.MathUtils.lerp(S.aiPaddle.material.emissiveIntensity||0, 0.3, 0.1);
+  },
+  onJudge(S, res, ev){
+    S.paddle.scale.setScalar(1.3);
+    S.aiPaddle.material.emissiveIntensity = 0.9;
+    if(res==='MISS'){
+      S.rally = 0;
+      S.pointsAI++;
+      S.aiPaddle.material.color.set(COLORS.pink);
+    } else {
+      S.rally++;
+      if(S.rally % 3 === 0) S.pointsYou++;
+      S.aiPaddle.material.color.set(COLORS.green);
+      spawnHockeyReturnPuck(S, ev.targetX);
+    }
+    document.getElementById('instructions').textContent =
+      'YOU ' + S.pointsYou + ' - ' + S.pointsAI + ' AI　（ラリー ' + S.rally + '）';
+  },
+  onHoldStart(S, ev){ S.paddle.material.emissiveIntensity = 0.9; },
+  teardown(S){ scene.remove(S.group); }
+});
+
+function spawnHockeyReturnPuck(S, fromX){
+  const puck = makeMesh(new THREE.CylinderGeometry(0.3,0.3,0.12,20), COLORS.cyan, {emissive:COLORS.cyan, emissiveIntensity:0.5, outline:false});
+  puck.position.set(fromX||0,-0.32,1.2);
+  S.group.add(puck);
+  const start = performance.now();
+  const dur = 420;
+  function anim(){
+    const p = Math.min(1, (performance.now()-start)/dur);
+    puck.position.z = THREE.MathUtils.lerp(1.2,-9.2,p);
+    puck.position.y = -0.32 + Math.sin(p*Math.PI)*0.4;
+    if(p<1) requestAnimationFrame(anim); else if(puck.parent) puck.parent.remove(puck);
+  }
+  requestAnimationFrame(anim);
+}
+
+/* ---------- TRACK 07 : AIとのふたり綱渡り (co-op: your miss makes the AI stumble too) ---------- */
+STAGES.push({
+  id:'tandem', name:'AIとのふたり綱渡り', bpm:132, bg:0x1E1E2E,
+  bassScale:[164.8,174.6,196,220,196,174.6,164.8,146.8],
+  controls:['Space'], penalizeWrongPress:false,
+  instructions:'最終ステージ！相棒AIと息を合わせて最後まで駆け抜けろ！',
+  buildPattern(){
+    const p=[]; let b=4;
+    const seq=[
+      {t:'tap',g:1},{t:'tap',g:0.75},{t:'tap',g:0.75},{t:'hold',len:1.3,g:1.2},
+      {t:'tap',g:0.6},{t:'tap',g:0.6},{t:'tap',g:1},{t:'hold',len:1.8,g:1.4},
+      {t:'tap',g:0.75},{t:'tap',g:0.75},{t:'tap',g:0.6},{t:'tap',g:1},
+      {t:'hold',len:1.5,g:1.2},{t:'tap',g:0.6},{t:'tap',g:0.6},{t:'tap',g:0.75},
+      {t:'hold',len:2.2,g:1.3},{t:'tap',g:0.6},{t:'tap',g:0.6},{t:'tap',g:0.6},{t:'tap',g:1}
+    ];
+    seq.forEach(item=>{
+      if(item.t==='hold'){
+        p.push({beat:b, key:'Space', type:'hold', holdBeats:item.len});
+        b += item.len + item.g;
+      } else {
+        p.push({beat:b, key:'Space', type:'tap'});
+        b += item.g;
+      }
+    });
+    return p;
+  },
+  travelBeats:2.6,
+  setup(S){
+    S.group = new THREE.Group(); scene.add(S.group);
+    const rope = makeMesh(new THREE.BoxGeometry(0.3,0.15,16), 0x8A6A3E, {outline:false});
+    rope.position.set(0,-0.6,-4);
+    S.group.add(rope);
+    const you = makeMesh(new THREE.BoxGeometry(0.6,1,0.5), COLORS.cyan);
+    you.position.set(-0.5,0,1);
+    S.group.add(you); S.you = you;
+    const yourHead = makeMesh(new THREE.SphereGeometry(0.3,14,14), COLORS.cream);
+    yourHead.position.set(0,0.68,0); you.add(yourHead);
+    const ai = makeMesh(new THREE.BoxGeometry(0.6,1,0.5), COLORS.pink);
+    ai.position.set(0.5,0,1);
+    S.group.add(ai); S.ai = ai;
+    const aiHead = makeMesh(new THREE.SphereGeometry(0.3,14,14), COLORS.cream);
+    aiHead.position.set(0,0.68,0); ai.add(aiHead);
+    const pole = makeMesh(new THREE.CylinderGeometry(0.05,0.05,1.4,8), COLORS.yellow);
+    pole.rotation.z = Math.PI/2; pole.position.set(0,0.5,1);
+    S.group.add(pole);
+    const rate = 15/this.travelBeats;
+    engine.pattern.forEach(ev=>{
+      let n;
+      if(ev.type==='hold'){
+        const len = Math.max(0.7, ev.holdBeats*rate);
+        n = makeMesh(new THREE.BoxGeometry(0.5,0.5,len), COLORS.green, {emissive:COLORS.green, emissiveIntensity:0.35});
+      } else {
+        n = makeMesh(new THREE.IcosahedronGeometry(0.38,0), COLORS.yellow, {emissive:COLORS.yellow, emissiveIntensity:0.3});
+      }
+      n.position.set(0,0.2,-15);
+      S.group.add(n); ev.obj = n;
+    });
+    S.balance = 1.0; S.targetBalance = 1.0;
+    camera.position.set(2.2,1.6,4.8);
+    camera.lookAt(0,0.3,0);
+  },
+  update(S, curBeat, dt){
+    engine.pattern.forEach(ev=>{
+      if(ev.type==='hold'){
+        const centerBeat = ev.beat + ev.holdBeats/2;
+        const t = (curBeat - (centerBeat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-15, 1.2, THREE.MathUtils.clamp(t,0,1.4));
+        ev.obj.position.z = z;
+        ev.obj.visible = t>-0.08 && t<1.5;
+        let col = COLORS.green;
+        if(ev.judged) col = ev.result==='MISS' ? 0x555566 : COLORS.yellow;
+        else if(ev.holding) col = COLORS.yellow;
+        ev.obj.material.color.set(col);
+      } else {
+        const t = (curBeat - (ev.beat - this.travelBeats)) / this.travelBeats;
+        const z = THREE.MathUtils.lerp(-15, 1.2, THREE.MathUtils.clamp(t,0,1.25));
+        ev.obj.position.z = z;
+        ev.obj.rotation.y += dt*2.5;
+        ev.obj.visible = t>-0.05 && t<1.35;
+        ev.obj.material.color.set(ev.judged ? (ev.result==='MISS'?0x555566:COLORS.yellow) : COLORS.yellow);
+      }
+    });
+    S.balance = THREE.MathUtils.lerp(S.balance, S.targetBalance, 0.08);
+    const ambientWobble = Math.sin(curBeat*1.6)*0.06 + Math.sin(curBeat*0.63+1)*0.04;
+    S.you.rotation.z = (1-S.balance)*0.5 + ambientWobble;
+    S.ai.rotation.z = (1-S.balance)*0.8 - ambientWobble*1.3;
+    S.ai.position.y = (1-S.balance)*-0.2 + Math.sin(curBeat*Math.PI+0.6)*0.03;
+    S.you.position.y = Math.sin(curBeat*Math.PI)*0.03;
+    S.you.scale.setScalar(THREE.MathUtils.lerp(S.you.scale.x,1,0.15));
+    S.ai.scale.setScalar(THREE.MathUtils.lerp(S.ai.scale.x,1,0.15));
+  },
+  onJudge(S, res, ev){
+    if(res==='MISS'){
+      S.targetBalance = Math.max(0, S.targetBalance - 0.35);
+      S.ai.material.color.set(0xFF3E7F);
+    } else {
+      S.targetBalance = Math.min(1, S.targetBalance + 0.15);
+      S.ai.material.color.set(COLORS.pink);
+      if(res==='PERFECT'){
+        // little synced celebration hop when you're both in perfect step
+        S.you.scale.setScalar(1.18);
+        S.ai.scale.setScalar(1.18);
+      }
+    }
+  },
+  teardown(S){ scene.remove(S.group); }
+});
+
+/* ============================================================
+   ENGINE / GAME FLOW
+   ============================================================ */
+
+function beatDurOf(bpm){ return 60/bpm; }
+
+function loadStage(idx){
+  currentStageIdx = idx;
+  const stageDef = STAGES[idx];
+  hideAllScreens();
+  document.getElementById('trackNo').textContent = String(idx+1).padStart(2,'0');
+  document.getElementById('stageName').textContent = stageDef.name;
+  document.getElementById('instructions').textContent = stageDef.instructions;
+  document.getElementById('hud').classList.add('show');
+
+  scene.background = new THREE.Color(stageDef.bg);
+
+  engine = {
+    stageDef: stageDef,
+    pattern: stageDef.buildPattern(),
+    beatDur: beatDurOf(stageDef.bpm),
+    score:0, combo:0, maxCombo:0,
+    perfectCount:0, goodCount:0, missCount:0,
+    started:false,
+    heldKeys:{},
+    allDoneAt:null,
+    S:{}
+  };
+  stageDef.setup(engine.S);
+  updateTouchButtonVisibility();
+
+  runCountdown(()=>{
+    if(audioCtx.state === 'suspended'){ audioCtx.resume().catch(()=>{}); }
+    engine.stageStart = audioCtx.currentTime + 0.15;
+    engine.started = true;
+    mode = 'playing';
+  });
+}
+
+function runCountdown(cb){
+  mode='countdown';
+  const el = document.getElementById('countdown');
+  const txt = document.getElementById('countdownText');
+  el.style.display='flex';
+  const seq = ['3','2','1','GO!'];
+  let i=0;
+  function step(){
+    if(i>=seq.length){ el.style.display='none'; cb(); return; }
+    txt.textContent = seq[i];
+    beep(i<3?520:760, 0.12, 'square', 0.15, 0);
+    i++;
+    setTimeout(step, 480);
+  }
+  step();
+}
+
+function curBeatNow(){
+  return (audioCtx.currentTime - engine.stageStart) / engine.beatDur;
+}
+
+let lastTickFloor = -999;
+let lastHalfFloor = -999;
+
+function updatePlaying(dt){
+  const curBeat = curBeatNow();
+  const stageDef = engine.stageDef;
+
+  // procedural music: kick + bassline on the beat, hi-hat on the off-beat
+  const floor = Math.floor(curBeat);
+  if(floor !== lastTickFloor && curBeat>=0){
+    lastTickFloor = floor;
+    beep(65, 0.16, 'sine', 0.35, 0);           // kick
+    const scale = stageDef.bassScale || [110,130.8,146.8,164.8,196,220,246.9,164.8];
+    beep(scale[floor % scale.length], 0.22, 'triangle', 0.10, 0); // bassline
+    const ring = document.getElementById('beatRing');
+    ring.style.transform = 'translateX(-50%) scale(1.28)';
+    setTimeout(()=>{ ring.style.transform='translateX(-50%) scale(1)'; }, 90);
+  }
+  const halfFloor = Math.floor(curBeat*2);
+  if(halfFloor !== lastHalfFloor && curBeat>=0){
+    lastHalfFloor = halfFloor;
+    if(halfFloor % 2 === 1){
+      beep(6500, 0.03, 'square', 0.02, 0); // hi-hat on the off-beat
+    }
+  }
+  const frac = curBeat - Math.floor(curBeat);
+  document.getElementById('beatFill').style.width = Math.max(0,Math.min(1,frac))*100 + '%';
+
+  const goodWindowBeats = CFG.goodWindow/engine.beatDur;
+
+  // auto-miss check (skip notes currently being held)
+  engine.pattern.forEach(ev=>{
+    if(ev.judged || ev.holding) return;
+    if(ev.type==='hold'){
+      // never started in time -> miss
+      if((curBeat - ev.beat) > goodWindowBeats){
+        ev.judged=true; ev.result='MISS';
+        applyResult('MISS', ev);
+      }
+    } else {
+      const anchor = ev.judgeBeat!==undefined ? ev.judgeBeat : ev.beat;
+      if((curBeat - anchor) > goodWindowBeats){
+        ev.judged = true; ev.result='MISS';
+        applyResult('MISS', ev);
+      }
+    }
+  });
+
+  // auto-complete holds that were held all the way through and beyond
+  const holdReleaseWindowBeats = CFG.holdReleaseWindow/engine.beatDur;
+  engine.pattern.forEach(ev=>{
+    if(ev.type==='hold' && ev.holding && !ev.judged){
+      const endBeat = ev.beat + ev.holdBeats;
+      if(curBeat > endBeat + holdReleaseWindowBeats){
+        ev.holding=false; ev.judged=true;
+        ev.result = ev.startDiff<=CFG.perfectWindow ? 'PERFECT' : 'GOOD';
+        applyResult(ev.result, ev);
+        delete engine.heldKeys[ev.key];
+        if(stageDef.onHoldEnd) stageDef.onHoldEnd(engine.S, ev);
+      }
+    }
+  });
+
+  stageDef.update(engine.S, curBeat, dt);
+
+  // stage end: as soon as everything is judged, wait a short beat then end
+  if(engine.pattern.every(e=>e.judged)){
+    if(!engine.allDoneAt) engine.allDoneAt = performance.now();
+    if(performance.now() - engine.allDoneAt > 550){
+      endStage();
+    }
+  } else {
+    engine.allDoneAt = null;
+  }
+}
+
+function applyResult(res, ev){
+  if(res==='PERFECT'){ engine.score+=100; engine.combo++; engine.perfectCount++; flashJudge('PERFECT!','#FFD23F'); }
+  else if(res==='GOOD'){ engine.score+=60; engine.combo++; engine.goodCount++; flashJudge('GOOD','#3EC6FF'); }
+  else { engine.combo=0; engine.missCount++; flashJudge('MISS','#FF3E7F'); }
+  engine.maxCombo = Math.max(engine.maxCombo, engine.combo);
+  document.getElementById('scoreVal').textContent = engine.score;
+  document.getElementById('comboVal').textContent = engine.combo;
+
+  screenFlash(res.toLowerCase());
+  if(res==='PERFECT') shakeCanvas();
+  if(res!=='MISS' && engine.combo>0 && engine.combo%10===0) showComboPopup(engine.combo);
+
+  if(engine.stageDef.onJudge) engine.stageDef.onJudge(engine.S, res, ev);
+}
+
+function screenFlash(kind){
+  const el = document.getElementById('screenFlash');
+  el.classList.remove('flash-perfect','flash-good','flash-miss');
+  void el.offsetWidth;
+  el.classList.add('flash-'+kind);
+}
+
+function shakeCanvas(){
+  const c = document.getElementById('c');
+  c.classList.remove('shake');
+  void c.offsetWidth;
+  c.classList.add('shake');
+}
+
+function showComboPopup(n){
+  const el = document.getElementById('comboPopup');
+  el.textContent = n + ' COMBO!!';
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function flashJudge(text, color){
+  const el = document.getElementById('judgeText');
+  el.textContent = text;
+  el.style.color = color;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+
+function handleKeyDown(key){
+  if(mode!=='playing') return;
+  const stageDef = engine.stageDef;
+  if(!stageDef.controls.includes(key)) return;
+  if(engine.heldKeys[key]) return; // ignore browser auto-repeat while already holding
+
+  const curBeat = curBeatNow();
+  let best=null, bestDiff=Infinity;
+  engine.pattern.forEach(ev=>{
+    if(ev.judged || ev.holding) return;
+    if(ev.key && ev.key!==key) return;
+    const anchor = ev.judgeBeat!==undefined ? ev.judgeBeat : ev.beat;
+    const diffSec = Math.abs(curBeat-anchor)*engine.beatDur;
+    if(diffSec<bestDiff){ bestDiff=diffSec; best=ev; }
+  });
+
+  if(best && bestDiff<=CFG.goodWindow){
+    const posOk = stageDef.extraValidate ? stageDef.extraValidate(engine.S, best) : true;
+    if(best.type==='hold'){
+      if(posOk){
+        best.holding = true;
+        best.startDiff = bestDiff;
+        engine.heldKeys[key] = best;
+        if(stageDef.onHoldStart) stageDef.onHoldStart(engine.S, best);
+      } else {
+        best.judged = true;
+        best.result = 'MISS';
+        applyResult('MISS', best);
+      }
+    } else {
+      best.judged = true;
+      best.result = posOk ? (bestDiff<=CFG.perfectWindow ? 'PERFECT' : 'GOOD') : 'MISS';
+      applyResult(best.result, best);
+    }
+  } else if(stageDef.penalizeWrongPress){
+    applyResult('MISS', null);
+  }
+  if(stageDef.onInput) stageDef.onInput(engine.S, key, best);
+}
+
+function handleKeyUp(key){
+  if(mode!=='playing') return;
+  const ev = engine.heldKeys[key];
+  if(!ev) return;
+  delete engine.heldKeys[key];
+  const curBeat = curBeatNow();
+  const endBeat = ev.beat + ev.holdBeats;
+  const earlySec = (endBeat - curBeat) * engine.beatDur;
+  ev.holding = false; ev.judged = true;
+  if(earlySec > CFG.holdReleaseWindow){
+    ev.result = 'MISS';
+  } else {
+    const endOk = Math.abs(earlySec) <= CFG.holdPerfectWindow;
+    const startOk = ev.startDiff <= CFG.perfectWindow;
+    ev.result = (startOk && endOk) ? 'PERFECT' : 'GOOD';
+  }
+  applyResult(ev.result, ev);
+  if(engine.stageDef.onHoldEnd) engine.stageDef.onHoldEnd(engine.S, ev);
+}
+
+function endStage(){
+  mode = 'result';
+  const stageDef = engine.stageDef;
+  stageDef.teardown(engine.S);
+  document.getElementById('hud').classList.remove('show');
+
+  const total = engine.pattern.length;
+  const acc = (engine.perfectCount + engine.goodCount) / total;
+  const passed = acc >= 0.6;
+  if(passed){
+    stageCleared[currentStageIdx] = true;
+    stageScores[currentStageIdx] = engine.score;
+    stageAccuracies[currentStageIdx] = acc;
+    totalPerfectAll += engine.perfectCount;
+    totalGoodAll += engine.goodCount;
+    totalMissAll += engine.missCount;
+  }
+
+  document.getElementById('resultEyebrow').textContent = passed ? 'TRACK CLEAR' : 'TRY AGAIN';
+  document.getElementById('resultTitle').textContent = passed ? 'STAGE CLEAR!' : 'もう少し！';
+  const accEl = document.getElementById('resultAcc');
+  accEl.textContent = Math.round(acc*100) + '%';
+  accEl.classList.toggle('fail', !passed);
+  document.getElementById('resultPerfect').textContent = 'PERFECT: ' + engine.perfectCount;
+  document.getElementById('resultGood').textContent = 'GOOD: ' + engine.goodCount;
+  document.getElementById('resultMiss').textContent = 'MISS: ' + engine.missCount;
+  document.getElementById('resultScoreLine').textContent = 'SCORE ' + engine.score + '  (MAX COMBO ' + engine.maxCombo + ')';
+
+  const btn = document.getElementById('resultBtn');
+  btn.textContent = passed ? (currentStageIdx < STAGES.length-1 ? '次のステージへ' : 'ALL CLEARへ！') : 'もう一度';
+  btn.className = passed ? 'btn' : 'btn alt';
+
+  const dotsWrap = document.getElementById('trackDots');
+  dotsWrap.innerHTML='';
+  STAGES.forEach((s,i)=>{
+    const d = document.createElement('div');
+    if(stageCleared[i]) d.classList.add('done');
+    if(i===currentStageIdx) d.classList.add('cur');
+    dotsWrap.appendChild(d);
+  });
+
+  document.getElementById('resultScreen').classList.remove('hidden');
+}
+
+function hideAllScreens(){
+  document.getElementById('titleScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.add('hidden');
+  document.getElementById('allClearScreen').classList.add('hidden');
+  document.getElementById('leaderboardScreen').classList.add('hidden');
+}
+
+document.getElementById('resultBtn').addEventListener('click', ()=>{
+  const passed = stageCleared[currentStageIdx];
+  if(passed){
+    if(currentStageIdx >= STAGES.length-1){
+      showAllClear();
+    } else {
+      loadStage(currentStageIdx+1);
+    }
+  } else {
+    loadStage(currentStageIdx);
+  }
+});
+
+const LB_KEY = 'rhythmOrchestra_leaderboard_v1';
+
+function loadLeaderboard(){
+  try{ return JSON.parse(localStorage.getItem(LB_KEY)) || []; }
+  catch(e){ return []; }
+}
+function saveLeaderboard(list){
+  try{ localStorage.setItem(LB_KEY, JSON.stringify(list)); }
+  catch(e){ /* storage unavailable (private mode, etc) - fail silently */ }
+}
+function rankColor(rank){
+  if(rank==='SS') return '#FFE873';
+  if(rank==='S') return '#FFD23F';
+  if(rank==='A') return '#3EC6FF';
+  if(rank==='B') return '#4CD787';
+  return '#FF3E7F';
+}
+function renderLeaderboardInto(elId, list, highlightId){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  if(list.length===0){
+    el.innerHTML = '<p style="color:rgba(255,246,233,.55);font-size:13px;margin:6px 0;">まだ記録がありません。プレイしてみよう！</p>';
+    return;
+  }
+  el.innerHTML = list.map((r,i)=>{
+    const isNew = r.id===highlightId;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;margin:4px 0;border-radius:10px;'
+      + 'background:'+(isNew?'rgba(255,210,63,.18)':'rgba(255,246,233,.06)')+';'
+      + 'border:1px solid '+(isNew?'var(--yellow)':'rgba(255,246,233,.12)')+';">'
+      + '<span style="font-size:12px;color:rgba(255,246,233,.5);width:16px;">'+(i+1)+'</span>'
+      + '<span style="font-family:\'Mochiy Pop One\',sans-serif;color:'+rankColor(r.rank)+';width:30px;">'+r.rank+'</span>'
+      + '<span style="flex:1;text-align:left;font-size:13px;">'+r.score+' pt ・ '+Math.round(r.acc*100)+'%</span>'
+      + '<span style="font-size:11px;color:rgba(255,246,233,.5);">'+r.date+'</span>'
+      + '</div>';
+  }).join('');
+}
+function refreshAllLeaderboardViews(highlightId){
+  const list = loadLeaderboard();
+  renderLeaderboardInto('leaderboardListAllClear', list, highlightId);
+  renderLeaderboardInto('leaderboardListStandalone', list, highlightId);
+}
+
+function showAllClear(){
+  hideAllScreens();
+  const totalScore = stageScores.reduce((a,b)=>a+(b||0),0);
+  const avgAcc = stageAccuracies.reduce((a,b)=>a+(b||0),0) / STAGES.length;
+  const nonPerfect = totalGoodAll + totalMissAll;
+  let rank, rankText;
+  if(totalMissAll <= 0 && totalGoodAll <= 6){ rank='SS'; rankText='伝説級！パーフェクトすぎる！！'; }
+  else if(avgAcc >= 0.9){ rank='S'; rankText='最高！！'; }
+  else if(avgAcc >= 0.75){ rank='A'; rankText='かなりいい感じ！'; }
+  else if(avgAcc >= 0.6){ rank='B'; rankText='いい感じ！'; }
+  else { rank='C'; rankText='がんばった！'; }
+  document.getElementById('finalRank').textContent = rank;
+  document.getElementById('finalRank').classList.toggle('fail', rank==='C');
+  document.getElementById('finalRank').classList.toggle('ss', rank==='SS');
+  document.getElementById('finalRankText').textContent = rankText;
+  document.getElementById('finalTotalScore').textContent = 'TOTAL SCORE ' + totalScore;
+  document.getElementById('finalAvgAcc').textContent = 'AVERAGE ACCURACY ' + Math.round(avgAcc*100) + '%';
+
+  const entry = { id: Date.now()+'_'+Math.random(), score: totalScore, acc: avgAcc, rank: rank,
+    date: new Date().toLocaleDateString('ja-JP', {year:'numeric',month:'2-digit',day:'2-digit'}) };
+  let list = loadLeaderboard();
+  list.push(entry);
+  list.sort((a,b)=>b.score-a.score);
+  list = list.slice(0,10);
+  saveLeaderboard(list);
+  refreshAllLeaderboardViews(entry.id);
+
+  document.getElementById('allClearScreen').classList.remove('hidden');
+  mode='allclear';
+}
+
+document.getElementById('showLeaderboardLink').addEventListener('click', ()=>{
+  hideAllScreens();
+  refreshAllLeaderboardViews(null);
+  document.getElementById('leaderboardScreen').classList.remove('hidden');
+  mode='leaderboard';
+});
+document.getElementById('lbBackBtn').addEventListener('click', ()=>{
+  hideAllScreens();
+  document.getElementById('titleScreen').classList.remove('hidden');
+  mode='title';
+});
+document.getElementById('acToTitleLink').addEventListener('click', ()=>{
+  hideAllScreens();
+  document.getElementById('titleScreen').classList.remove('hidden');
+  mode='title';
+});
+document.getElementById('lbResetLink').addEventListener('click', ()=>{
+  saveLeaderboard([]);
+  refreshAllLeaderboardViews(null);
+});
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  initAudio();
+  stageCleared = [false,false,false,false,false,false,false];
+  stageScores = []; stageAccuracies = [];
+  totalPerfectAll = 0; totalGoodAll = 0; totalMissAll = 0;
+  loadStage(0);
+});
+
+document.getElementById('restartAllBtn').addEventListener('click', ()=>{
+  stageCleared = [false,false,false,false,false,false,false];
+  stageScores = []; stageAccuracies = [];
+  totalPerfectAll = 0; totalGoodAll = 0; totalMissAll = 0;
+  loadStage(0);
+});
+
+let physicalKeys = {};
+window.addEventListener('keydown', (e)=>{
+  if(e.code==='Space' || e.code==='Enter') e.preventDefault();
+  physicalKeys[e.code] = true;
+
+  if((e.code==='Space' || e.code==='Enter') && mode!=='playing' && mode!=='countdown'){
+    if(mode==='title') document.getElementById('startBtn').click();
+    else if(mode==='result') document.getElementById('resultBtn').click();
+    else if(mode==='allclear') document.getElementById('restartAllBtn').click();
+    else if(mode==='leaderboard') document.getElementById('lbBackBtn').click();
+    return;
+  }
+
+  if(e.code==='Space' || e.code==='KeyA' || e.code==='KeyS' || e.code==='KeyD'){
+    handleKeyDown(e.code);
+  }
+});
+window.addEventListener('keyup', (e)=>{
+  physicalKeys[e.code] = false;
+  if(e.code==='Space' || e.code==='KeyA' || e.code==='KeyS' || e.code==='KeyD'){
+    handleKeyUp(e.code);
+  }
+});
+
+/* ---------------- touch controls (mobile) ---------------- */
+function isTouchDevice(){
+  return ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints>0);
+}
+
+if(isTouchDevice()){
+  document.body.classList.add('touch-mode');
+  document.getElementById('touchControls').classList.add('show');
+}
+
+document.querySelectorAll('.touchBtn').forEach(btn=>{
+  const code = btn.dataset.key;
+  const start = (e)=>{
+    e.preventDefault();
+    physicalKeys[code] = true;
+    handleKeyDown(code);
+    btn.classList.add('active');
+  };
+  const end = (e)=>{
+    e.preventDefault();
+    physicalKeys[code] = false;
+    handleKeyUp(code);
+    btn.classList.remove('active');
+  };
+  btn.addEventListener('touchstart', start, {passive:false});
+  btn.addEventListener('touchend', end, {passive:false});
+  btn.addEventListener('touchcancel', end, {passive:false});
+  // also usable with a mouse, for testing on desktop
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', end);
+  btn.addEventListener('mouseleave', end);
+});
+
+function updateTouchButtonVisibility(){
+  if(!engine || !engine.stageDef){
+    document.querySelectorAll('.touchBtn').forEach(btn=>{ btn.style.display='none'; });
+    return;
+  }
+  const keys = new Set([...(engine.stageDef.controls||[]), ...(engine.stageDef.extraTouchKeys||[])]);
+  document.querySelectorAll('.touchBtn').forEach(btn=>{
+    btn.style.display = keys.has(btn.dataset.key) ? 'flex' : 'none';
+  });
+}
+
+/* ---------------- main render loop ---------------- */
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min((now-lastT)/1000, 0.05);
+  lastT = now;
+  if(mode==='playing'){
+    updatePlaying(dt);
+  }
+  if(isTouchDevice()){
+    document.getElementById('touchControls').classList.toggle('show', mode==='playing'||mode==='countdown');
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+initThree();
+</script>
+</body>
+</html>
